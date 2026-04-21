@@ -1,0 +1,207 @@
+<?xml version="1.0"?>
+<project name="solidar_tool" default="prepare" basedir=".">
+  <!-- Declarations proprietes et classpath -->
+  <!-- LIGNES SUIVANTES A MODIFIER : -->
+  <property name="jboss.dir" value="/home/a/k/akhatran/AI/wildfly-38.0.1.Final" />
+  <property name="serveurPostgres" value="serveur-etu.polytech-lille.fr" />
+  <property name="basePostgres" value="jeedbakhatran" />
+  <property name="userPostgres" value="akhatran" />
+  <property name="passwordPostgres" value="postgres" />
+  <property name="driverJDBCPostgres" value="${jboss.dir}/modules/system/layers/base/org/postgresql/main/postgresql.jar" />
+  <!-- ligne suivante : mettre en commentaire si vous n'êtes pas en salle TP Polytech -->
+  <!--<setproxy proxyhost="proxy.polytech-lille.fr" proxyport="3128" /> -->
+  <!-- FIN LIGNES  A MODIFIER : -->
+  <property name="jboss.lib.dir" value="${jboss.dir}/lib" />
+  <property name="src.dir" value="${basedir}/src" />
+  <property name="build.dir" value="build" />
+  <property name="name" value="solidar_tool" />
+  <!-- The build classpath -->
+  <path id="build.classpath">
+    <pathelement location="${basedir}"/>
+    <fileset dir="${jboss.dir}/modules/system/layers/base/org/hibernate/main">
+      <include name="*.jar"/>
+    </fileset>
+    <fileset dir="${jboss.dir}/modules/system/layers/base/jakarta/persistence/api/main">
+      <include name="*.jar"/>
+    </fileset>
+    <fileset dir="${jboss.dir}/bin/client">
+      <include name="*.jar"/>
+    </fileset>
+    <fileset dir="${jboss.dir}/modules/system/layers/base/jakarta/ejb/api/main">
+      <include name="*.jar"/>
+    </fileset>
+    <fileset dir="${jboss.dir}/modules/system/layers/base/jakarta/servlet/api/main">
+      <include name="**/*.jar"/>
+    </fileset>
+    <pathelement location="${build.dir}/sessions"/>
+    <pathelement location="${build.dir}/entites" />
+    <pathelement location="${build.dir}/classes"/>
+  </path>
+
+  <!-- Prepare -->
+  <target name="prepare">
+    <mkdir dir="${build.dir}" />
+    <mkdir dir="${build.dir}/docs" />
+    <mkdir dir="${build.dir}/sessions" />
+    <mkdir dir="${build.dir}/entites" />
+    <mkdir dir="${build.dir}/jars" />
+    <mkdir dir="${build.dir}/web" />
+    <mkdir dir="${build.dir}/web/WEB-INF" />
+    <mkdir dir="${build.dir}/web/WEB-INF/classes" />
+  </target>
+
+  <!-- Compile sessions-->
+  <target name="compile-sessions" depends="prepare">
+    <javac destdir="${build.dir}/sessions" classpathref="build.classpath" encoding="utf-8">
+      <src path="${src.dir}/ejb/sessions" />
+    </javac>
+  </target>
+
+  <!-- Create sessions file -->
+  <target name="package-sessions" depends="compile-sessions">
+    <jar jarfile="${build.dir}/jars/${name}Sessions.jar" basedir="${build.dir}/sessions">
+    </jar>
+  </target>
+
+  <!-- Compile entites-->
+  <target name="compile-entities" depends="prepare">
+    <javac destdir="${build.dir}/entites" classpathref="build.classpath" encoding="utf-8">
+      <src path="${src.dir}/ejb/entites" />
+    </javac>
+  </target>
+
+  <!-- Create entites-jar file -->
+  <target name="package-entities" depends="compile-entities">
+    <jar jarfile="${build.dir}/jars/${name}Entites.jar" basedir="${build.dir}/entites">
+      <metainf dir="${src.dir}/ejb/entites">
+        <include name="persistence.xml"/>
+      </metainf>
+    </jar>
+  </target>
+
+  <target name="deployEntityWithoutEAR" depends="package-entities">
+    <copy file="${build.dir}/jars/${name}Entites.jar" todir="${jboss.dir}/standalone/deployments" />
+  </target>
+
+
+
+  <target name="compile-controlers" depends="prepare">
+    <javac destdir="${build.dir}/web/WEB-INF/classes" classpathref="build.classpath" encoding="utf-8">
+      <src path="${src.dir}/web/controleurs" />
+    </javac>
+  </target>
+
+  <target name="war" depends="compile-controlers">
+    <copy todir="${build.dir}/web">
+      <fileset dir="${src.dir}/web/vues" includes="**" />
+    </copy>
+    <jar basedir="${build.dir}/web/" destfile="${build.dir}/jars/${name}.war">
+    </jar>
+  </target>
+
+  <target name="earSession" depends="package-sessions">
+    <ear destfile="${build.dir}/jars/${name}.ear" appxml="${src.dir}/application.xml">
+      <fileset dir="${build.dir}/jars" excludes="*.ear,*.war" />
+    </ear>
+  </target>
+
+  <target name="earSessionWeb" depends="package-sessions, war">
+    <ear destfile="${build.dir}/jars/${name}.ear" appxml="${src.dir}/application.xml">
+      <fileset dir="${build.dir}/jars" excludes="*.ear" />
+    </ear>
+  </target>
+
+  <target name="earEntity" depends="package-entities">
+    <ear destfile="${build.dir}/jars/${name}.ear" appxml="${src.dir}/application.xml">
+      <fileset dir="${build.dir}/jars" excludes="*.ear,*.war" />
+    </ear>
+  </target>
+
+  <target name="earEntityAndSession" depends="package-entities,package-sessions">
+    <ear destfile="${build.dir}/jars/${name}.ear" appxml="${src.dir}/application.xml">
+      <fileset dir="${build.dir}/jars" excludes="*.ear,*.war" />
+    </ear>
+  </target>
+
+
+  <target name="earEntityAndSessionAndWeb" depends="package-entities,package-sessions, war">
+    <ear destfile="${build.dir}/jars/${name}.ear" appxml="${src.dir}/application.xml">
+      <fileset dir="${build.dir}/jars" excludes="*.ear" />
+    </ear>
+  </target>
+
+  <target name="deploy">
+    <copy file="${build.dir}/jars/${name}.ear" todir="${jboss.dir}/standalone/deployments" />
+  </target>
+
+  <target name="deployEntityWithEAR" depends="earEntity, deploy" />
+
+  <target name="deployEntityAndSessionWithEAR" depends="earEntityAndSession, deploy" />
+
+
+  <target name="deployAll" depends="earEntityAndSessionAndWeb, deploy" />
+
+  <target name="undeploy">
+    <delete>
+      <fileset dir="${jboss.dir}/standalone/deployments">
+        <filename name="${name}*.*" />
+      </fileset>
+    </delete>
+
+  </target>
+
+  <target name="javadoc" depends="compile-sessions">
+    <javadoc packagenames="*" sourcepath="src/ejb/sessions" classpathref="build.classpath" destdir="build/docs" author="true" private="true" windowtitle="${name} api">
+    </javadoc>
+  </target>
+  <target name="initBase">
+    <sql driver="org.postgresql.Driver" url="jdbc:postgresql://${serveurPostgres}/${basePostgres}?useUnicode=true&amp;characterEncoding=UTF-8" userid="${userPostgres}" password="${passwordPostgres}">
+      <classpath>
+        <pathelement path="${driverJDBCPostgres}"/>
+      </classpath>
+      <transaction src="${src.dir}/initBase.sql"/>
+    </sql>
+  </target>
+  <!-- Clean everything -->
+  <target name="clean" depends="undeploy">
+    <delete dir="${build.dir}" />
+  </target>
+
+  <!-- compilation, execution programme client -->
+  <target name="init-client" depends="prepare">
+    <property name="classes.dir" value="${build.dir}/classes" />
+    <mkdir dir="${classes.dir}" />
+
+  </target>
+
+
+  <target name="compile-client" depends="init-client">
+
+    <javac srcdir="${src.dir}/client" destdir="${classes.dir}" encoding="utf-8">
+      <classpath refid="build.classpath" />
+    </javac>
+  </target>
+
+  <target name="run-client" depends="compile-client, initBase">
+    <java classname="client.Main" fork="yes" dir=".">
+      <classpath refid="build.classpath" />
+    </java>
+  </target>
+
+  <target name="run-modifier-etat" depends="compile-client"> 
+		<input message="Email ?" addproperty="email"  />
+		<input message="Code emprunt ?" addproperty="codeEmprunt"  />
+		<input message="Nouvel Etat ?" addproperty="newEtat"  />
+    <java classname="client.Main2" fork="yes" dir=".">
+      <arg value="${email}" />
+      <arg value="${codeEmprunt}" />
+      <arg value="${newEtat}" />
+      <classpath refid="build.classpath" />
+    </java>
+  </target>
+
+  <target name="clean-client" depends="init-client">
+    <delete dir="${build.dir}/classes" />
+  </target>
+
+</project>
